@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cicle Urbà de l'Aigua: Simulador Territorial i Ambiental</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Animacions del flux d'aigua */
+        .flow-line {
+            stroke-dasharray: 10 6;
+            animation: flowDash 1.2s linear infinite;
+        }
+
+        @keyframes flowDash {
+            to { stroke-dashoffset: -32; }
+        }
+
+        .bubble-anim {
+            animation: bubbleRise 2s infinite ease-in-out;
+        }
+
+        @keyframes bubbleRise {
+            0% { transform: translateY(0px) scale(0.8); opacity: 0.3; }
+            50% { transform: translateY(-8px) scale(1.1); opacity: 0.9; }
+            100% { transform: translateY(-16px) scale(0.7); opacity: 0; }
+        }
+
+        .node-element {
+            transition: all 0.25s ease;
+            cursor: pointer;
+        }
+
+        .node-element:hover {
+            filter: drop-shadow(0px 0px 8px rgba(56, 189, 248, 0.9));
+        }
+
+        .node-selected {
+            filter: drop-shadow(0px 0px 12px rgba(245, 158, 11, 0.95)) !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-sky-500 selection:text-white">
+
+    <!-- Header Principal -->
+    <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30">
+                    <i class="ph-bold ph-mountains text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white leading-tight">Cicle Urbà de l'Aigua al Paisatge</h1>
+                    <p class="text-xs text-sky-400 font-medium">Model Territorial Integrat: ETAP, Ciutat, EDAR i Medi Natural</p>
+                </div>
+            </div>
+
+            <!-- Controls de simulació -->
+            <div class="flex items-center space-x-3">
+                <button id="playPauseBtn" class="flex items-center space-x-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-xl shadow transition text-xs sm:text-sm">
+                    <i id="playIcon" class="ph-bold ph-pause"></i>
+                    <span id="playText">Pausar Flux</span>
+                </button>
+                <button id="resetBtn" title="Reiniciar valors" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition">
+                    <i class="ph-bold ph-arrows-counter-clockwise text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contingut Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Columna Esquerra/Central: Il·lustració del Paisatge SVG & Sliders (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col space-y-5">
+            
+            <!-- Targeta del Paisatge Geogràfic -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-2xl relative overflow-hidden flex flex-col">
+                <div class="flex flex-wrap justify-between items-center mb-3 gap-2">
+                    <div class="flex items-center space-x-2">
+                        <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <h2 class="text-sm font-semibold text-slate-200">Mapa Territorial Interactiu (Premeu sobre els elements)</h2>
+                    </div>
+                    <div class="flex items-center space-x-2 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Muntanya & ETAP</span>
+                        <span class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">Entorn Urbà</span>
+                        <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">EDAR & Reg</span>
+                    </div>
+                </div>
+
+                <!-- CANVAS PAISATGÍSTIC SVG CONTINU -->
+                <div class="relative w-full h-[460px] bg-slate-950 rounded-xl border border-slate-800/80 overflow-hidden shadow-inner">
+                    <svg id="landscapeSvg" class="w-full h-full" viewBox="0 0 1000 550" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <!-- Gradients del Rellev i Paisatge -->
+                            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#0f172a"/>
+                                <stop offset="60%" stop-color="#1e293b"/>
+                                <stop offset="100%" stop-color="#1e3a8a"/>
+                            </linearGradient>
+
+                            <linearGradient id="mountainGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#475569"/>
+                                <stop offset="100%" stop-color="#1e293b"/>
+                            </linearGradient>
+
+                            <linearGradient id="hillGrad1" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#15803d"/>
+                                <stop offset="100%" stop-color="#0f5132"/>
+                            </linearGradient>
+
+                            <linearGradient id="hillGrad2" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#166534"/>
+                                <stop offset="100%" stop-color="#064e3b"/>
+                            </linearGradient>
+
+                            <linearGradient id="cropGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#65a30d"/>
+                                <stop offset="100%" stop-color="#4d7c0f"/>
+                            </linearGradient>
+                        </defs>
+
+                        <!-- 1. CEL I FONS PAISATGÍSTIC -->
+                        <rect width="1000" height="550" fill="url(#skyGrad)"/>
+                        
+                        <!-- Núvols decoratius -->
+                        <path d="M 60 70 Q 75 50 95 60 Q 115 45 135 60 Q 150 55 160 70 Z" fill="#94a3b8" opacity="0.15"/>
+                        <path d="M 700 60 Q 720 40 740 50 Q 760 35 780 50 Q 800 45 810 65 Z" fill="#94a3b8" opacity="0.15"/>
+
+                        <!-- 2. MUNTANYES DE CAPÇALERA (FONS) -->
+                        <polygon points="-50,280 120,110 260,280" fill="url(#mountainGrad)"/>
+                        <polygon points="100,280 240,80 380,280" fill="#334155"/>
+                        <!-- Gel / Capçalera de neu -->
+                        <polygon points="220,105 240,80 260,105 248,98 240,108 232,98" fill="#e2e8f0" opacity="0.8"/>
+
+                        <!-- 3. TURONS I PLANA RÚSTICA -->
+                        <!-- Turó Rústic Esquerra (ETAP) -->
+                        <path d="M -20,380 Q 180,240 420,360 L 420,550 L -20,550 Z" fill="url(#hillGrad1)"/>
+                        <!-- Plana Urbana i Vall (Centre-Dreta) -->
+                        <path d="M 350,360 Q 600,280 1020,340 L 1020,550 L 350,550 Z" fill="url(#hillGrad2)"/>
+
+                        <!-- Camps de conreu / Zona agrícola (Dreta baixa) -->
+                        <polygon points="760,420 980,390 1010,480 780,520" fill="url(#cropGrad)" opacity="0.85"/>
+                        <!-- Línies de cultiu -->
+                        <line x1="780" y1="430" x2="990" y2="400" stroke="#84cc16" stroke-width="2" stroke-dasharray="8 4"/>
+                        <line x1="790" y1="450" x2="1000" y2="420" stroke="#84cc16" stroke-width="2" stroke-dasharray="8 4"/>
+                        <line x1="800" y1="470" x2="1010" y2="440" stroke="#84cc16" stroke-width="2" stroke-dasharray="8 4"/>
+                        <text x="870" y="460" fill="#ecfccb" font-size="10" font-weight="bold" opacity="0.9">CAMPS DE REG AGRICULTURAL</text>
+
+                        <!-- 4. EL CURS DEL RIU SERPENTEEJANT (MEDI NATURAL) -->
+                        <path id="riverBed" d="M 230,130 Q 200,220 120,270 T 180,360 T 450,390 T 720,440 T 960,460" 
+                              fill="none" stroke="#0284c7" stroke-width="28" stroke-linecap="round"/>
+                        <path id="riverWater" d="M 230,130 Q 200,220 120,270 T 180,360 T 450,390 T 720,440 T 960,460" 
+                              fill="none" stroke="#38bdf8" stroke-width="18" stroke-linecap="round" opacity="0.85"/>
+                        
+                        <!-- Text etiquetes del riu -->
+                        <text x="110" y="180" fill="#7dd3fc" font-size="10" font-weight="bold">Captació Aigua Bruta</text>
+                        <text x="860" y="495" fill="#38bdf8" font-size="10" font-weight="bold">Abocament al Riu / Medi</text>
+
+
+                        <!-- 5. INFRAESTRUCTURES I NODES RECONEIXEBLES -->
+
+                        <!-- A. PLANTA POTABILITZADORA (ETAP) - Zona Rústica / Peu de muntanya -->
+                        <g id="nodeEtap" class="node-element" data-id="etap">
+                            <!-- Recinte ETAP -->
+                            <rect x="190" y="245" width="160" height="95" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+                            <text x="270" y="262" fill="#38bdf8" font-size="11" font-weight="bold" text-anchor="middle">ETAP (POTABILITZADORA)</text>
+                            
+                            <!-- Sub-elements ETAP -->
+                            <rect x="205" y="275" width="36" height="30" rx="4" fill="#334155" stroke="#94a3b8"/><text x="223" y="294" fill="#e2e8f0" font-size="8" text-anchor="middle">Decant.</text>
+                            <rect x="252" y="275" width="36" height="30" rx="4" fill="#334155" stroke="#94a3b8"/><text x="270" y="294" fill="#e2e8f0" font-size="8" text-anchor="middle">Filtres</text>
+                            <rect x="299" y="275" width="40" height="30" rx="4" fill="#0284c7" stroke="#38bdf8"/><text x="319" y="294" fill="#ffffff" font-size="8" text-anchor="middle">Clor/Dip.</text>
+
+                            <!-- Torre d'aigua de subministrament -->
+                            <path d="M 365,315 L 375,250 L 395,250 L 405,315 Z" fill="#475569" stroke="#64748b"/>
+                            <ellipse cx="385" cy="250" rx="18" ry="10" fill="#0284c7" stroke="#38bdf8" stroke-width="2"/>
+                            <text x="385" y="240" fill="#7dd3fc" font-size="8" text-anchor="middle" font-weight="bold">Torre Dipòsit</text>
+                        </g>
+
+                        <!-- B. ENTORN URBÀ / CIUTAT (Zona Mitjana-Plana) -->
+                        <g id="nodeCity" class="node-element" data-id="ciutat">
+                            <rect x="470" y="230" width="180" height="110" rx="12" fill="#1e293b" stroke="#60a5fa" stroke-width="2"/>
+                            <text x="560" y="248" fill="#93c5fd" font-size="11" font-weight="bold" text-anchor="middle">ENTORN URBÀ (LLARS I CIUTAT)</text>
+                            
+                            <!-- Edificis i Cases SVG -->
+                            <rect x="485" y="260" width="30" height="60" fill="#3b82f6" rx="2"/>
+                            <rect x="522" y="270" width="35" height="50" fill="#1d4ed8" rx="2"/>
+                            <!-- Casa amb teulat -->
+                            <polygon points="570,280 587,265 604,280" fill="#ef4444"/>
+                            <rect x="573" y="280" width="28" height="40" fill="#f3f4f6"/>
+                            <!-- Casa 2 -->
+                            <polygon points="608,285 623,272 638,285" fill="#f97316"/>
+                            <rect x="611" y="285" width="24" height="35" fill="#e5e7eb"/>
+                            
+                            <text x="560" y="332" fill="#94a3b8" font-size="8" text-anchor="middle">Consum i Generació d'Aigües Fecals</text>
+                        </g>
+
+                        <!-- C. PLANTA DEPURADORA (EDAR) - Zona Baixa a les afores -->
+                        <g id="nodeEdar" class="node-element" data-id="edar">
+                            <rect x="690" y="325" width="170" height="95" rx="10" fill="#1e293b" stroke="#10b981" stroke-width="2"/>
+                            <text x="775" y="342" fill="#34d399" font-size="11" font-weight="bold" text-anchor="middle">EDAR (DEPURADORA)</text>
+                            
+                            <!-- Reactors Biològics Circulars -->
+                            <circle cx="725" cy="375" r="22" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+                            <circle cx="725" cy="375" r="14" fill="#047857"/>
+                            <!-- Animació bullit biològic -->
+                            <circle cx="720" cy="375" r="2" fill="#a3e635" class="bubble-anim"/>
+                            <circle cx="728" cy="372" r="3" fill="#a3e635" class="bubble-anim" style="animation-delay: 0.6s;"/>
+
+                            <circle cx="780" cy="375" r="22" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+                            <text x="780" y="378" fill="#a7f3d0" font-size="8" text-anchor="middle" font-weight="bold">Decant. 2ª</text>
+
+                            <rect x="815" y="357" width="35" height="36" rx="4" fill="#047857" stroke="#34d399"/>
+                            <text x="832" y="377" fill="#ffffff" font-size="8" text-anchor="middle">Efluent</text>
+                        </g>
+
+                        <!-- 6. XARXA DE CANONADES I TUBERIES VISIBLES -->
+                        
+                        <!-- Canonada 1: Captació Riu -> ETAP -->
+                        <path d="M 140,290 L 190,290" stroke="#ca8a04" stroke-width="6" fill="none"/>
+                        <path id="pipeRaw" class="flow-line" d="M 140,290 L 190,290" stroke="#fef08a" stroke-width="3" fill="none"/>
+
+                        <!-- Canonada 2: ETAP Torre -> Xarxa Urbana Potable -->
+                        <path d="M 385,320 L 385,350 L 470,350 L 470,290" stroke="#0284c7" stroke-width="6" fill="none"/>
+                        <path id="pipePotable" class="flow-line" d="M 385,320 L 385,350 L 470,350 L 470,290" stroke="#38bdf8" stroke-width="3" fill="none"/>
+
+                        <!-- Canonada 3: Ciutat Clavegueram Fecals -> EDAR -->
+                        <path d="M 630,320 L 670,320 L 670,370 L 690,370" stroke="#78350f" stroke-width="6" fill="none"/>
+                        <path id="pipeSewage" class="flow-line" d="M 630,320 L 670,320 L 670,370 L 690,370" stroke="#f59e0b" stroke-width="3" fill="none"/>
+
+                        <!-- Canonada 4A: EDAR Sortida -> Abocament Riu -->
+                        <path d="M 860,375 L 890,375 L 890,440" stroke="#059669" stroke-width="6" fill="none"/>
+                        <path id="pipeTreated" class="flow-line" d="M 860,375 L 890,375 L 890,440" stroke="#34d399" stroke-width="3" fill="none"/>
+
+                        <!-- Canonada 4B: EDAR -> Canalització per al Reg Agrícola -->
+                        <path d="M 832,393 L 832,440 L 860,440" stroke="#16a34a" stroke-width="4" fill="none" stroke-dasharray="4 2"/>
+                        <path id="pipeIrrigation" class="flow-line" d="M 832,393 L 832,440 L 860,440" stroke="#84cc16" stroke-width="2" fill="none"/>
+                    </svg>
+
+                    <!-- Etiqueta dinàmica d'estat -->
+                    <div class="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-300 flex items-center space-x-2">
+                        <i class="ph-bold ph-info text-sky-400"></i>
+                        <span id="mapStatusText">Exploreu el paisatge fent clic sobre l'ETAP, la Ciutat o l'EDAR.</span>
+                    </div>
+                </div>
+
+                <!-- SLIDERS I CONTROLS SIMULADORS DE VARIABLES -->
+                <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-800 pt-4">
+                    
+                    <!-- Slider 1: Qualitat Riu inicial -->
+                    <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-slate-300">1. Contaminació Riu (Origen)</span>
+                            <span id="riverQualityVal" class="text-amber-400">Moderada (40%)</span>
+                        </div>
+                        <input id="sliderRiverQuality" type="range" min="0" max="100" value="40" class="w-full accent-amber-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        <span class="text-[10px] text-slate-500 block mt-1">Impacta la càrrega a l'ETAP</span>
+                    </div>
+
+                    <!-- Slider 2: Cabal del Riu -->
+                    <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-slate-300">2. Cabal del Riu</span>
+                            <span id="riverFlowVal" class="text-sky-400">15 m³/s (Normal)</span>
+                        </div>
+                        <input id="sliderRiverFlow" type="range" min="5" max="50" value="15" class="w-full accent-sky-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        <span class="text-[10px] text-slate-500 block mt-1">Capacitat de dilució natural</span>
+                    </div>
+
+                    <!-- Slider 3: Generació Fecals Ciutat -->
+                    <div class="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-slate-300">3. Fecals Ciutat (EDAR)</span>
+                            <span id="sewageVal" class="text-emerald-400">Mitjà (120 L/hab/d)</span>
+                        </div>
+                        <input id="sliderSewage" type="range" min="50" max="250" value="120" class="w-full accent-emerald-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+                        <span class="text-[10px] text-slate-500 block mt-1">Volum que rep la depuradora</span>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Monitoreig de Paràmetres en Temps Real -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center">
+                        <i class="ph-bold ph-gauge text-sky-400 mr-2 text-base"></i>Qualitat de l'Aigua al Punt Seleccionat
+                    </h3>
+                    <span id="stageBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">ETAP: Sortida Potable</span>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                        <span class="text-[11px] text-slate-400 block">Puresa Globals</span>
+                        <span id="paramPurity" class="text-base font-bold text-sky-400">98.5 %</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                        <span class="text-[11px] text-slate-400 block">Turbiditat</span>
+                        <span id="paramTurbidity" class="text-base font-bold text-emerald-400">0.3 NTU</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                        <span class="text-[11px] text-slate-400 block">pH</span>
+                        <span id="paramPh" class="text-base font-bold text-indigo-400">7.2</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+                        <span class="text-[11px] text-slate-400 block">DQO / DBO₅</span>
+                        <span id="paramDqo" class="text-base font-bold text-teal-400">&lt; 5 mg/L</span>
+                    </div>
+                    <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800 col-span-2 sm:col-span-1">
+                        <span class="text-[11px] text-slate-400 block">Aptitud d'Ús</span>
+                        <span id="paramFitness" class="text-xs font-bold text-emerald-400 block truncate">Apte Consum Humà</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Columna Dreta: Targeta Informativa i Educativa (4 Cols) -->
+        <div class="lg:col-span-4 flex flex-col">
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl flex-1 flex flex-col justify-between">
+                <div>
+                    <!-- Header Targeta Element -->
+                    <div class="flex items-center space-x-3 mb-4 pb-3 border-b border-slate-800">
+                        <div id="infoIconBox" class="p-3 bg-sky-500/20 text-sky-400 rounded-xl border border-sky-500/30">
+                            <i id="infoIcon" class="ph-bold ph-drop text-2xl"></i>
+                        </div>
+                        <div>
+                            <span id="infoCategory" class="text-[10px] font-bold text-sky-400 uppercase tracking-wider block">Infraestructura</span>
+                            <h2 id="infoTitle" class="text-base font-bold text-white">Planta Potabilitzadora (ETAP)</h2>
+                        </div>
+                    </div>
+
+                    <!-- Contingut Descriptiu -->
+                    <div class="space-y-4 text-xs text-slate-300">
+                        <div>
+                            <h4 class="font-semibold text-slate-400 uppercase mb-1 text-[10px]">Funció al Cicle Urbà</h4>
+                            <p id="infoDesc" class="leading-relaxed bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                                Transforma l'aigua bruta capta al riu en aigua potabilitzada 100% segura per al consum de la població a les llars.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-slate-400 uppercase mb-1 text-[10px]">Etapes i Processos Clau</h4>
+                            <ul id="infoSteps" class="list-disc list-inside space-y-1 text-slate-300 pl-1">
+                                <li>Captació i Desbast de gruixuts</li>
+                                <li>Coagulació / Floculació i Sedimentació</li>
+                                <li>Filtració per sorra i carbó actiu</li>
+                                <li>Desinfecció amb clor/ozó i emmagatzematge</li>
+                            </ul>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-slate-400 uppercase mb-1 text-[10px]">Impacte de les Variables</h4>
+                            <p id="infoImpact" class="leading-relaxed text-slate-400">
+                                Si la contaminació inicial del riu augmenta, l'ETAP requereix més dosificació de coagulants i clor per mantenir la potabilitat.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Targeta amb Nota Didàctica -->
+                <div class="mt-6 pt-3 border-t border-slate-800 bg-slate-950/40 -mx-5 -mb-5 p-4 rounded-b-2xl">
+                    <div class="flex items-start space-x-2 text-[11px] text-slate-400">
+                        <i class="ph-bold ph-lightbulb text-amber-400 text-sm flex-shrink-0 mt-0.5"></i>
+                        <p id="infoTip">Recordeu: L'ETAP tracta l'aigua *abans* de consumir-la i l'EDAR la neteja *després* d'haver-la utilitzat.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer de l'aplicació -->
+    <footer class="bg-slate-900/60 border-t border-slate-800 py-3 text-center text-xs text-slate-500">
+        Dashboard Educatiu Integrat: Cicle Urbà de l'Aigua &bull; Àmbit Científic-Tecnològic 1r ESO
+    </footer>
+
+    <!-- Lògica JavaScript -->
+    <script>
+        // Dades dels Nodes del Paisatge
+        const LANDSCAPE_DATA = {
+            'etap': {
+                title: "Planta Potabilitzadora (ETAP)",
+                category: "Tractament d'Aigua d'Entrada",
+                icon: "ph-drop-half-bottom",
+                desc: "Ubicada a la zona rústica a la vora del riu. Capta l'aigua dolça natural i la sotmet a tractaments físics i químics per fer-la apta per al consum humà.",
+                steps: [
+                    "Captació amb reixes de desbast",
+                    "Floculació i decantació de fangs",
+                    "Filtració per llits de sorra silícia",
+                    "Desinfecció amb clor o ozonització"
+                ],
+                impact: "Un augment de la contaminació del riu requereix major dosi de reaccions químiques a l'ETAP.",
+                tip: "L'aigua potabilitzada s'impulsa cap a la torre dipòsit per distribuir-la a la ciutat.",
+                stageBadge: "ETAP: Aigua Potable",
+                calcParams: (qRiu, flow, sew) => ({
+                    purity: (99.8 - (qRiu * 0.02)).toFixed(1) + " %",
+                    turbidity: (0.2 + (qRiu * 0.005)).toFixed(2) + " NTU",
+                    ph: "7.2",
+                    dqo: "< 5 mg/L",
+                    fitness: "Apte Consum Humà"
+                })
+            },
+            'ciutat': {
+                title: "Entorn Urbà i Llars",
+                category: "Ús Domèstic i Municipal",
+                icon: "ph-buildings",
+                desc: "Les llars, escoles i indústries utilitzen l'aigua potable per a la higiene, cuina i neteja, convertint-la en aigües residuals (fecals).",
+                steps: [
+                    "Arribada per la xarxa a pressió",
+                    "Consum domèstic i municipal",
+                    "Generació d'aigües residuals",
+                    "Recollida pel clavegueram cap a l'EDAR"
+                ],
+                impact: "A major volum de consum urbà, més gran és el cabal d'aigües residuals que arriba a la depuradora.",
+                tip: "És fonamental no llençar oli ni tovalloles al WC per no col·lapsar el clavegueram.",
+                stageBadge: "Ciutat: Aigua Residual Bruta",
+                calcParams: (qRiu, flow, sew) => ({
+                    purity: "35.0 %",
+                    turbidity: (80 + (sew * 0.3)).toFixed(0) + " NTU",
+                    ph: "6.9",
+                    dqo: (300 + (sew * 1.2)).toFixed(0) + " mg/L",
+                    fitness: "No Potable / Fecal"
+                })
+            },
+            'edar': {
+                title: "Planta Depuradora (EDAR)",
+                category: "Sanejament i Medi Ambient",
+                icon: "ph-tree-structure",
+                desc: "Situada a les afores de la ciutat. Tracta l'aigua fecal mitjançant microorganismes (tractament biològic secundari) per retornar-la neta al riu.",
+                steps: [
+                    "Pretractament i Desgrat",
+                    "Decantació Primària",
+                    "Tractament Biològic (Fangs Activats)",
+                    "Decantació Secundària i Clarificació"
+                ],
+                impact: "Si l'EDAR rep massa cabal de cop, pot reduir lleugerament l'eficiència de purificació.",
+                tip: "L'aigua depurada és transparent i es pot abocar al riu o reutilitzar per al reg agrícola.",
+                stageBadge: "EDAR: Aigua Depurada",
+                calcParams: (qRiu, flow, sew) => {
+                    const overload = Math.max(0, sew - 150) * 0.1;
+                    const purityVal = Math.max(82, 96 - overload).toFixed(1);
+                    return {
+                        purity: purityVal + " %",
+                        turbidity: (2.0 + overload * 0.2).toFixed(1) + " NTU",
+                        ph: "7.4",
+                        dqo: (15 + overload * 2).toFixed(0) + " mg/L",
+                        fitness: purityVal > 90 ? "Apte Reg i Abocament" : "Abocament Controlat"
+                    };
+                }
+            }
+        };
+
+        // Estat Global de la Simulació
+        let selectedNodeKey = 'etap';
+        let isPlaying = true;
+
+        // Referències DOM
+        const sliderRiverQuality = document.getElementById('sliderRiverQuality');
+        const sliderRiverFlow = document.getElementById('sliderRiverFlow');
+        const sliderSewage = document.getElementById('sliderSewage');
+
+        const riverQualityVal = document.getElementById('riverQualityVal');
+        const riverFlowVal = document.getElementById('riverFlowVal');
+        const sewageVal = document.getElementById('sewageVal');
+
+        const riverWaterPath = document.getElementById('riverWater');
+        const pipeSewagePath = document.getElementById('pipeSewage');
+        const pipeTreatedPath = document.getElementById('pipeTreated');
+
+        // Inicialització
+        function init() {
+            setupEventListeners();
+            updateSimulation();
+            selectNode('etap');
+        }
+
+        // Seleccionar un node del paisatge
+        function selectNode(key) {
+            if (!LANDSCAPE_DATA[key]) return;
+            selectedNodeKey = key;
+            const data = LANDSCAPE_DATA[key];
+
+            // Ressaltar visualment al SVG
+            document.querySelectorAll('.node-element').forEach(el => {
+                if (el.getAttribute('data-id') === key) {
+                    el.classList.add('node-selected');
+                } else {
+                    el.classList.remove('node-selected');
+                }
+            });
+
+            // Actualitzar targeta lateral
+            document.getElementById('infoTitle').textContent = data.title;
+            document.getElementById('infoCategory').textContent = data.category;
+            document.getElementById('infoIcon').className = `ph-bold ${data.icon} text-2xl`;
+            document.getElementById('infoDesc').textContent = data.desc;
+            document.getElementById('infoImpact').textContent = data.impact;
+            document.getElementById('infoTip').textContent = data.tip;
+            document.getElementById('stageBadge').textContent = data.stageBadge;
+
+            const stepsUl = document.getElementById('infoSteps');
+            stepsUl.innerHTML = '';
+            data.steps.forEach(st => {
+                const li = document.createElement('li');
+                li.textContent = st;
+                stepsUl.appendChild(li);
+            });
+
+            // Actualitzar missatge guia
+            document.getElementById('mapStatusText').textContent = `Seleccionat: ${data.title}`;
+
+            // Recalcular paràmetres visuals
+            updateParameters();
+        }
+
+        // Recalcular i actualitzar paràmetres de la taula
+        function updateParameters() {
+            const qRiu = parseInt(sliderRiverQuality.value);
+            const flow = parseInt(sliderRiverFlow.value);
+            const sew = parseInt(sliderSewage.value);
+
+            const data = LANDSCAPE_DATA[selectedNodeKey];
+            if (data && data.calcParams) {
+                const params = data.calcParams(qRiu, flow, sew);
+                document.getElementById('paramPurity').textContent = params.purity;
+                document.getElementById('paramTurbidity').textContent = params.turbidity;
+                document.getElementById('paramPh').textContent = params.ph;
+                document.getElementById('paramDqo').textContent = params.dqo;
+                document.getElementById('paramFitness').textContent = params.fitness;
+            }
+        }
+
+        // Actualitzar simulació segons els sliders
+        function updateSimulation() {
+            const qRiu = parseInt(sliderRiverQuality.value);
+            const flow = parseInt(sliderRiverFlow.value);
+            const sew = parseInt(sliderSewage.value);
+
+            // 1. Textos dels sliders
+            if (qRiu < 25) riverQualityVal.textContent = "Neta / Òptima";
+            else if (qRiu < 60) riverQualityVal.textContent = "Moderada (" + qRiu + "%)";
+            else riverQualityVal.textContent = "Molt Contaminada (" + qRiu + "%)";
+
+            riverFlowVal.textContent = flow + " m³/s " + (flow < 10 ? "(Sequera)" : flow > 35 ? "(Copiós)" : "");
+            sewageVal.textContent = sew + " L/hab/d";
+
+            // 2. Canvi de color de l'aigua del Riu segons contaminació inicial
+            if (qRiu < 30) {
+                riverWaterPath.setAttribute('stroke', '#38bdf8');
+            } else if (qRiu < 65) {
+                riverWaterPath.setAttribute('stroke', '#0284c7');
+            } else {
+                riverWaterPath.setAttribute('stroke', '#a16207');
+            }
+
+            // Grossor del riu segons cabal
+            riverWaterPath.setAttribute('stroke-width', Math.max(10, Math.min(26, flow * 0.6)));
+
+            // 3. Canvi visual de la tubería de Fecals
+            pipeSewagePath.setAttribute('stroke-width', Math.max(2, Math.min(6, sew / 30)));
+
+            // 4. Canvi visual de la tubería de sortida EDAR depurada
+            if (sew > 180) {
+                pipeTreatedPath.setAttribute('stroke', '#facc15'); // Menys neta si hi ha sobrecàrrega
+            } else {
+                pipeTreatedPath.setAttribute('stroke', '#34d399'); // Neta i transparent
+            }
+
+            updateParameters();
+        }
+
+        // Configurar Event Listeners
+        function setupEventListeners() {
+            // Clics als nodes SVG
+            document.querySelectorAll('.node-element').forEach(el => {
+                el.addEventListener('click', () => {
+                    const id = el.getAttribute('data-id');
+                    selectNode(id);
+                });
+            });
+
+            // Sliders
+            sliderRiverQuality.addEventListener('input', updateSimulation);
+            sliderRiverFlow.addEventListener('input', updateSimulation);
+            sliderSewage.addEventListener('input', updateSimulation);
+
+            // Botó Play/Pause
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const playIcon = document.getElementById('playIcon');
+            const playText = document.getElementById('playText');
+
+            playPauseBtn.addEventListener('click', () => {
+                isPlaying = !isPlaying;
+                const flowLines = document.querySelectorAll('.flow-line');
+                if (isPlaying) {
+                    playIcon.className = 'ph-bold ph-pause';
+                    playText.textContent = 'Pausar Flux';
+                    flowLines.forEach(l => l.style.animationPlayState = 'running');
+                } else {
+                    playIcon.className = 'ph-bold ph-play';
+                    playText.textContent = 'Reprendre';
+                    flowLines.forEach(l => l.style.animationPlayState = 'paused');
+                }
+            });
+
+            // Reset
+            document.getElementById('resetBtn').addEventListener('click', () => {
+                sliderRiverQuality.value = 40;
+                sliderRiverFlow.value = 15;
+                sliderSewage.value = 120;
+                updateSimulation();
+                selectNode('etap');
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
